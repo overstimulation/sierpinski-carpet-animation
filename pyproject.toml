@@ -1,0 +1,15 @@
+[project]
+name = "sierpinski-carpet-animation"
+version = "1.0.0"
+description = "Sierpiński Carpet Animation Generator (CLI and GUI) by @overstimulation"
+authors = ["overstimulation <noreply@github.com>"]
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "PySide6"
+]
+
+[tool.setuptools]
+packages = ["."]
