@@ -2,6 +2,9 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Author: overstimulation
+# Repo: https://github.com/overstimulation/sierpinski-carpet-animation
+
 
 def create_sierpinski_carpet(order, size=243):
     """
@@ -169,6 +172,8 @@ def create_sierpinski_animation(
 
 # Main execution block
 if __name__ == "__main__":
+    print("Sierpiński Carpet Animation Generator by @overstimulation")
+    print("Contribute or view source: https://github.com/overstimulation/sierpinski-carpet-animation\n")
     # Parameters for the animation
     MAX_ORDER = 15  # Maximum recursion depth
     FRAMES_PER_ORDER = 15  # Frames for transition between orders

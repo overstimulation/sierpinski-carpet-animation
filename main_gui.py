@@ -71,10 +71,19 @@ class PowerOfThreeSpinBox(QSpinBox):
 class SierpinskiGUI(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Sierpiński Carpet Animation Generator by @overstimulation on GitHub")
+        self.setWindowTitle("Sierpiński Carpet Animation Generator by @overstimulation")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
         layout = QVBoxLayout()
+
+        # Add clickable repo link at the top
+        repo_label = QLabel(
+            '<a href="https://github.com/overstimulation/sierpinski-carpet-animation">'
+            "Contribute or view source on GitHub</a>"
+        )
+        repo_label.setOpenExternalLinks(True)
+        repo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(repo_label)
 
         # Maximum recursion depth
         order_layout = QHBoxLayout()
