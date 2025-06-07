@@ -1,12 +1,14 @@
 import sys
 
-from PySide6.QtGui import QValidator
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QImage, QPixmap, QValidator
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -25,8 +27,7 @@ class PowerOfThreeSpinBox(QSpinBox):
         self.setKeyboardTracking(False)
 
     def keyPressEvent(self, event):
-        # Ignore all key presses to block keyboard input
-        event.ignore()
+        event.ignore()  # Ignore all key presses to block keyboard input
 
     def stepBy(self, steps):
         current = self.value()
@@ -66,7 +67,7 @@ class SierpinskiGUI(QWidget):
         super().__init__()
         self.setWindowTitle("Sierpiński Carpet Animation Generator by @overstimulation on GitHub")
         self.setMinimumWidth(600)
-        self.setMinimumHeight(300)
+        self.setMinimumHeight(400)
         layout = QVBoxLayout()
 
         # Maximum recursion depth
@@ -118,6 +119,23 @@ class SierpinskiGUI(QWidget):
         format_layout.addWidget(self.format_combo)
         layout.addLayout(format_layout)
 
+        # Live preview label
+        self.preview_label = QLabel("Live preview will appear here")
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setMinimumHeight(220)
+        layout.addWidget(self.preview_label)
+
+        # Phase label above progress bar
+        self.phase_label = QLabel("Idle")
+        self.phase_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.phase_label)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+
         # Run button
         self.run_button = QPushButton("Create animation")
         self.run_button.clicked.connect(self.run_animation)
@@ -125,21 +143,87 @@ class SierpinskiGUI(QWidget):
 
         self.setLayout(layout)
 
+    def update_preview(self, np_array):
+        # Convert numpy array to QImage and display in QLabel
+        if np_array is None:
+            self.preview_label.setText("Live preview will appear here")
+            return
+        h, w = np_array.shape
+        # Convert 1/0 to 255/0 grayscale
+        img = (np_array * 255).astype("uint8")
+        qimg = QImage(img.data, w, h, w, QImage.Format.Format_Grayscale8)
+        pixmap = QPixmap.fromImage(qimg).scaled(220, 220, Qt.AspectRatioMode.KeepAspectRatio)
+        self.preview_label.setPixmap(pixmap)
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def update_phase(self, text):
+        self.phase_label.setText(text)
+
     def run_animation(self):
         self.run_button.setEnabled(False)
-        try:
-            size = self.size_spin.value()
-            as_mp4 = self.format_combo.currentText() == "MP4"
-            create_sierpinski_animation(
-                max_order=self.order_spin.value(),
-                frames_per_order=self.frames_spin.value(),
-                size=size,
-                output_filename=self.file_edit.text(),
-                as_mp4=as_mp4,
-                fps=self.fps_spin.value(),
-            )
-        finally:
-            self.run_button.setEnabled(True)
+        self.progress_bar.setValue(0)
+        self.update_preview(None)
+        self.phase_label.setText("Starting...")
+        # Start worker thread for animation generation
+        self.worker = AnimationWorker(
+            max_order=self.order_spin.value(),
+            frames_per_order=self.frames_spin.value(),
+            size=self.size_spin.value(),
+            output_filename=self.file_edit.text(),
+            as_mp4=self.format_combo.currentText() == "MP4",
+            fps=self.fps_spin.value(),
+        )
+        self.worker.progress_signal.connect(self.update_progress)
+        self.worker.preview_signal.connect(self.update_preview)
+        self.worker.phase_signal.connect(self.update_phase)
+        self.worker.finished_signal.connect(self.on_worker_finished)
+        self.worker.start()
+
+    def on_worker_finished(self):
+        self.run_button.setEnabled(True)
+
+
+class AnimationWorker(QThread):
+    progress_signal = Signal(int)
+    preview_signal = Signal(object)  # numpy array
+    finished_signal = Signal()
+    phase_signal = Signal(str)
+
+    def __init__(self, max_order, frames_per_order, size, output_filename, as_mp4, fps):
+        super().__init__()
+        self.max_order = max_order
+        self.frames_per_order = frames_per_order
+        self.size = size
+        self.output_filename = output_filename
+        self.as_mp4 = as_mp4
+        self.fps = fps
+
+    def run(self):
+        def progress_callback(val):
+            self.progress_signal.emit(val)
+
+        def preview_callback(np_array):
+            self.preview_signal.emit(np_array)
+
+        def phase_callback(text):
+            self.phase_signal.emit(text)
+
+        # Pass phase_callback to create_sierpinski_animation
+        create_sierpinski_animation(
+            max_order=self.max_order,
+            frames_per_order=self.frames_per_order,
+            size=self.size,
+            output_filename=self.output_filename,
+            as_mp4=self.as_mp4,
+            fps=self.fps,
+            progress_callback=progress_callback,
+            preview_callback=preview_callback,
+            phase_callback=phase_callback,
+        )
+        self.phase_signal.emit("Done")
+        self.finished_signal.emit()
 
 
 # Main execution block

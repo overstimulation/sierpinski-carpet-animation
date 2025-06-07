@@ -46,21 +46,13 @@ def create_sierpinski_animation(
     output_filename="sierpinski_carpet_animation",
     as_mp4=True,
     fps=10,
+    progress_callback=None,
+    preview_callback=None,
+    phase_callback=None,  # <-- add phase_callback
 ):
     """
     Creates and saves an animation of the Sierpiński carpet evolution.
-
-    Parameters:
-    - max_order: Maximum recursion depth to reach
-    - frames_per_order: Number of transition frames between each order
-    - size: Size of the output image (should be 3^n for some n)
-    - cmap: Colormap to use
-    - output_filename: Filename for the saved animation
-    - as_mp4: If True, save as MP4, otherwise as GIF
-    - fps: Frames per second for the animation
-
-    Returns:
-    - None (saves the animation to a file)
+    Optionally calls progress_callback(percent:int), preview_callback(np.ndarray), and phase_callback(str) for GUI updates.
     """
     # Total number of frames
     total_frames = max_order * frames_per_order + frames_per_order
@@ -77,6 +69,8 @@ def create_sierpinski_animation(
 
     # Print information about carpet generation
     print("Generating Sierpiński carpets...")
+    if phase_callback:
+        phase_callback("Generating carpets...")
 
     # Precompute all carpet orders
     carpets = []
@@ -84,6 +78,14 @@ def create_sierpinski_animation(
         print(f"  Generating order {order}...")
         carpet = create_sierpinski_carpet(order, size)
         carpets.append(carpet)
+        # Progress for carpet generation (0-30%)
+        if progress_callback:
+            progress_callback(int(30 * (order + 1) / (max_order + 1)))
+        if preview_callback:
+            preview_callback(carpet)
+
+    if phase_callback:
+        phase_callback("Creating animation frames...")
 
     def animate(frame):
         # Calculate order and transition progress
@@ -114,10 +116,18 @@ def create_sierpinski_animation(
         # Update the image data
         img.set_data(carpet_frame)
 
+        # Progress for animation creation (30-90%)
+        if progress_callback:
+            progress_callback(30 + int(60 * frame / total_frames))
+        if preview_callback:
+            preview_callback(carpet_frame)
+
         return [img]
 
     # Create and save the animation
     print(f"Creating animation ({total_frames} frames)... This may take a while.")
+    if phase_callback:
+        phase_callback("Saving animation...")
     anim = animation.FuncAnimation(fig, animate, frames=total_frames, interval=1000 / fps, blit=True)
 
     # Save the animation
@@ -126,8 +136,7 @@ def create_sierpinski_animation(
         try:
             filename = f"{output_filename}.mp4"
             Writer = animation.writers["ffmpeg"]
-            writer = Writer(fps=fps, metadata=dict(artist="AI Generated"), bitrate=1800, codec="libx264")
-            writer.extra_args = ["-pix_fmt", "yuv420p"]
+            writer = Writer(fps=fps, metadata=dict(artist="AI Generated"), bitrate=1800)
             anim.save(filename, writer=writer)
             print(f"Animation saved as {filename}")
         except Exception as e:
@@ -148,6 +157,10 @@ def create_sierpinski_animation(
             save_error = e
 
     plt.close(fig)
+    if progress_callback:
+        progress_callback(100)
+    if phase_callback:
+        phase_callback("Done")
     if save_error:
         print("\nAnimation generation completed, but saving failed.")
     else:
