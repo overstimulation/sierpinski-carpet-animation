@@ -139,7 +139,7 @@ def create_sierpinski_animation(
         try:
             filename = f"{output_filename}.mp4"
             Writer = animation.writers["ffmpeg"]
-            writer = Writer(fps=fps, metadata=dict(artist="AI Generated"), bitrate=1800)
+            writer = Writer(fps=fps, bitrate=1800)
             anim.save(filename, writer=writer)
             print(f"Animation saved as {filename}")
         except Exception as e:
