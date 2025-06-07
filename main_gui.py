@@ -197,7 +197,13 @@ class SierpinskiGUI(QWidget):
         self.worker.preview_signal.connect(self.update_preview)
         self.worker.phase_signal.connect(self.update_phase)
         self.worker.finished_signal.connect(self.on_worker_finished)
+        self.worker.error_signal.connect(self.on_worker_error)
         self.worker.start()
+
+    def on_worker_error(self, error_msg):
+        self.run_button.setEnabled(True)
+        QMessageBox.critical(self, "Error during animation generation", error_msg)
+        self.phase_label.setText("Error")
 
     def on_worker_finished(self):
         self.run_button.setEnabled(True)
@@ -223,6 +229,7 @@ class AnimationWorker(QThread):
     preview_signal = Signal(object)  # numpy array
     finished_signal = Signal()
     phase_signal = Signal(str)
+    error_signal = Signal(str)
 
     def __init__(self, max_order, frames_per_order, size, output_filename, as_mp4, fps):
         super().__init__()
@@ -244,19 +251,22 @@ class AnimationWorker(QThread):
             self.phase_signal.emit(text)
 
         # Pass phase_callback to create_sierpinski_animation
-        create_sierpinski_animation(
-            max_order=self.max_order,
-            frames_per_order=self.frames_per_order,
-            size=self.size,
-            output_filename=self.output_filename,
-            as_mp4=self.as_mp4,
-            fps=self.fps,
-            progress_callback=progress_callback,
-            preview_callback=preview_callback,
-            phase_callback=phase_callback,
-        )
-        self.phase_signal.emit("Done")
-        self.finished_signal.emit()
+        try:
+            create_sierpinski_animation(
+                max_order=self.max_order,
+                frames_per_order=self.frames_per_order,
+                size=self.size,
+                output_filename=self.output_filename,
+                as_mp4=self.as_mp4,
+                fps=self.fps,
+                progress_callback=progress_callback,
+                preview_callback=preview_callback,
+                phase_callback=phase_callback,
+            )
+            self.phase_signal.emit("Done")
+            self.finished_signal.emit()
+        except Exception as e:
+            self.error_signal.emit(str(e))
 
 
 # Main execution block
