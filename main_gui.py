@@ -20,6 +20,9 @@ from PySide6.QtWidgets import (
 
 from main import create_sierpinski_animation
 
+# Author: overstimulation
+# Repo: https://github.com/overstimulation/sierpinski-carpet-animation
+
 # Suppress warnings
 warnings.filterwarnings("ignore")  # Suppress all warnings
 
