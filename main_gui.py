@@ -154,10 +154,21 @@ class SierpinskiGUI(QWidget):
         self.progress_bar.setValue(0)
         layout.addWidget(self.progress_bar)
 
-        # Run button
+        # Estimated time label
+        self.eta_label = QLabel("Estimated time: --")
+        self.eta_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.eta_label)
+
+        # Run and Cancel buttons
+        button_layout = QHBoxLayout()
         self.run_button = QPushButton("Create animation")
         self.run_button.clicked.connect(self.run_animation)
-        layout.addWidget(self.run_button)
+        button_layout.addWidget(self.run_button)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.clicked.connect(self.cancel_animation)
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
 
         self.setLayout(layout)
 
@@ -175,15 +186,24 @@ class SierpinskiGUI(QWidget):
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
+        # Update ETA if worker has timing info
+        if hasattr(self, "worker") and hasattr(self.worker, "get_eta"):
+            eta = self.worker.get_eta()
+            if eta is not None:
+                self.eta_label.setText(f"Estimated time: {eta}")
+            else:
+                self.eta_label.setText("Estimated time: --")
 
     def update_phase(self, text):
         self.phase_label.setText(text)
 
     def run_animation(self):
         self.run_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
         self.progress_bar.setValue(0)
         self.update_preview(None)
         self.phase_label.setText("Starting...")
+        self.eta_label.setText("Estimated time: --")
         # Start worker thread for animation generation
         self.worker = AnimationWorker(
             max_order=self.order_spin.value(),
@@ -198,15 +218,27 @@ class SierpinskiGUI(QWidget):
         self.worker.phase_signal.connect(self.update_phase)
         self.worker.finished_signal.connect(self.on_worker_finished)
         self.worker.error_signal.connect(self.on_worker_error)
+        self.worker.cancelled_signal.connect(self.on_worker_cancelled)
         self.worker.start()
+        self._start_time = None
+
+    def cancel_animation(self):
+        if hasattr(self, "worker"):
+            self.worker.cancel()
+            self.phase_label.setText("Cancelling...")
+            self.cancel_button.setEnabled(False)
 
     def on_worker_error(self, error_msg):
         self.run_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
         QMessageBox.critical(self, "Error during animation generation", error_msg)
         self.phase_label.setText("Error")
+        self.eta_label.setText("Estimated time: --")
 
     def on_worker_finished(self):
         self.run_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
+        self.eta_label.setText("Estimated time: --")
         # Show pop-up dialog
         msg = QMessageBox(self)
         msg.setWindowTitle("Animation Complete")
@@ -223,6 +255,12 @@ class SierpinskiGUI(QWidget):
             filepath = os.path.abspath(filename)
             QDesktopServices.openUrl(QUrl.fromLocalFile(filepath))
 
+    def on_worker_cancelled(self):
+        self.run_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
+        self.phase_label.setText("Cancelled")
+        self.eta_label.setText("Estimated time: --")
+
 
 class AnimationWorker(QThread):
     progress_signal = Signal(int)
@@ -230,6 +268,7 @@ class AnimationWorker(QThread):
     finished_signal = Signal()
     phase_signal = Signal(str)
     error_signal = Signal(str)
+    cancelled_signal = Signal()
 
     def __init__(self, max_order, frames_per_order, size, output_filename, as_mp4, fps):
         super().__init__()
@@ -239,9 +278,18 @@ class AnimationWorker(QThread):
         self.output_filename = output_filename
         self.as_mp4 = as_mp4
         self.fps = fps
+        self._cancelled = False
+        self._start_time = None
+        self._last_progress = 0
 
     def run(self):
+        import time
+
+        self._start_time = time.time()
+        self._last_progress = 0
+
         def progress_callback(val):
+            self._last_progress = val
             self.progress_signal.emit(val)
 
         def preview_callback(np_array):
@@ -262,11 +310,37 @@ class AnimationWorker(QThread):
                 progress_callback=progress_callback,
                 preview_callback=preview_callback,
                 phase_callback=phase_callback,
+                cancel_callback=self.is_cancelled,
             )
-            self.phase_signal.emit("Done")
-            self.finished_signal.emit()
+            if self._cancelled:
+                self.phase_signal.emit("Cancelled")
+                self.cancelled_signal.emit()
+            else:
+                self.phase_signal.emit("Done")
+                self.finished_signal.emit()
         except Exception as e:
             self.error_signal.emit(str(e))
+
+    def cancel(self):
+        self._cancelled = True
+
+    def is_cancelled(self):
+        return self._cancelled
+
+    def get_eta(self):
+        import time
+
+        if self._start_time is None or self._last_progress == 0:
+            return None
+        elapsed = time.time() - self._start_time
+        if self._last_progress == 0:
+            return None
+        total = elapsed / (self._last_progress / 100)
+        remaining = total - elapsed
+        if remaining < 0:
+            return None
+        mins, secs = divmod(int(remaining), 60)
+        return f"{mins}m {secs}s" if mins else f"{secs}s"
 
 
 # Main execution block

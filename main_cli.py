@@ -52,10 +52,11 @@ def create_sierpinski_animation(
     progress_callback=None,
     preview_callback=None,
     phase_callback=None,  # <-- add phase_callback
+    cancel_callback=None,  # <-- add cancel_callback
 ):
     """
     Creates and saves an animation of the Sierpiński carpet evolution.
-    Optionally calls progress_callback(percent:int), preview_callback(np.ndarray), and phase_callback(str) for GUI updates.
+    Optionally calls progress_callback(percent:int), preview_callback(np.ndarray), phase_callback(str), and cancel_callback() for GUI updates and cancellation.
     """
     # Total number of frames
     total_frames = max_order * frames_per_order + frames_per_order
@@ -78,6 +79,11 @@ def create_sierpinski_animation(
     # Precompute all carpet orders
     carpets = []
     for order in range(max_order + 1):
+        if cancel_callback and cancel_callback():
+            plt.close(fig)
+            if phase_callback:
+                phase_callback("Cancelled")
+            return
         print(f"  Generating order {order}...")
         carpet = create_sierpinski_carpet(order, size)
         carpets.append(carpet)
@@ -91,6 +97,8 @@ def create_sierpinski_animation(
         phase_callback("Creating animation frames...")
 
     def animate(frame):
+        if cancel_callback and cancel_callback():
+            raise RuntimeError("Cancelled")
         # Calculate order and transition progress
         current_order = min(frame // frames_per_order, max_order)
         next_order = min(current_order + 1, max_order)
@@ -131,7 +139,16 @@ def create_sierpinski_animation(
     print(f"Creating animation ({total_frames} frames)... This may take a while.")
     if phase_callback:
         phase_callback("Saving animation...")
-    anim = animation.FuncAnimation(fig, animate, frames=total_frames, interval=1000 / fps, blit=True)
+    try:
+        anim = animation.FuncAnimation(fig, animate, frames=total_frames, interval=1000 / fps, blit=True)
+    except RuntimeError as e:
+        if str(e) == "Cancelled":
+            plt.close(fig)
+            if phase_callback:
+                phase_callback("Cancelled")
+            return
+        else:
+            raise
 
     # Save the animation
     save_error = None
