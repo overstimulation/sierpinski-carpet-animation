@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from main import create_sierpinski_animation
+from main_cli import create_sierpinski_animation
 
 # Author: overstimulation
 # Repo: https://github.com/overstimulation/sierpinski-carpet-animation
