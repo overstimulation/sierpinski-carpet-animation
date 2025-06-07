@@ -1,13 +1,16 @@
+import os
 import sys
+import warnings
 
-from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QImage, QPixmap, QValidator
+from PySide6.QtCore import Qt, QThread, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QImage, QPixmap, QValidator
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QSpinBox,
@@ -16,6 +19,9 @@ from PySide6.QtWidgets import (
 )
 
 from main import create_sierpinski_animation
+
+# Suppress warnings
+warnings.filterwarnings("ignore")  # Suppress all warnings
 
 
 class PowerOfThreeSpinBox(QSpinBox):
@@ -183,6 +189,21 @@ class SierpinskiGUI(QWidget):
 
     def on_worker_finished(self):
         self.run_button.setEnabled(True)
+        # Show pop-up dialog
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Animation Complete")
+        msg.setText("The animation has been created successfully.")
+        ok_button = msg.addButton("Okay", QMessageBox.ButtonRole.AcceptRole)
+        open_button = msg.addButton("Open file", QMessageBox.ButtonRole.ActionRole)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+
+        if msg.clickedButton() == open_button:
+            # Determine file extension
+            ext = ".mp4" if self.format_combo.currentText() == "MP4" else ".gif"
+            filename = self.file_edit.text() + ext
+            filepath = os.path.abspath(filename)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(filepath))
 
 
 class AnimationWorker(QThread):
