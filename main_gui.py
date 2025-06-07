@@ -32,7 +32,7 @@ class PowerOfThreeSpinBox(QSpinBox):
         super().__init__(parent)
         self.allowed_sizes = [3**n for n in range(1, 11)]  # 3, 9, ..., 3^10
         self.setRange(self.allowed_sizes[0], self.allowed_sizes[-1])
-        self.setValue(self.allowed_sizes[7])  # Default to 2187 (3^7)
+        self.setValue(self.allowed_sizes[6])  # Default to 2187 (3^7)
         self.setKeyboardTracking(False)
 
     def keyPressEvent(self, event):
